@@ -136,7 +136,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--videos", required=True, help="folder with .mp4 files, or a single .mp4")
     ap.add_argument("--out", default="predictions.json")
-    ap.add_argument("--team", default="unnamed-team")
+    ap.add_argument("--team", default="MOMENTUM")
     ap.add_argument("--solution", default="solution.py")
     ap.add_argument("--no-risk", action="store_true")
     ap.add_argument("--risk-stride", type=int, default=1)
