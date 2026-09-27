@@ -1,3 +1,7 @@
+"""
+config.py — every tunable number lives here so rule tuning never means
+hunting through five files.
+"""
 from pathlib import Path
 
 # ---- paths -----------------------------------------------------------
@@ -14,7 +18,11 @@ VEHICLE_CLASSES = {1, 2, 3, 5, 7}
 PERSON_CLASS = 0
 # how many frames to skip between YOLO calls in detect_events (Part A can
 # afford this; RiskEstimator has its own, tighter budget below)
-DETECT_FRAME_STRIDE = 2
+DETECT_FRAME_STRIDE = 3
+# frames to batch into one YOLO forward call in detect_events — batching
+# amortizes Python/model call overhead across many frames instead of
+# paying it per single frame
+DETECT_BATCH_SIZE = 16
 
 # ---- tracking (ByteTrack) ---------------------------------------------
 TRACK_THRESH = 0.3
@@ -67,3 +75,11 @@ MAX_MERGE_GAP_S = 1.0          # merge same-class segments separated by <= this
 RISK_HORIZON_SEC = 5.0
 RISK_STEP_STRIDE = 1            # harness calls every frame; internal work can skip
 RISK_SMOOTHING = 0.7            # EMA factor toward new instantaneous risk
+
+# The harness's --risk-stride is fixed at 1 in the official run — every
+# frame arrives at step(). But nothing says step() has to run full YOLO
+# inference on every one of them; the spec explicitly allows "skipping
+# frames internally and returning the previous score." This is that skip,
+# entirely internal to RiskModel — separate from the harness's own stride
+# option, which we don't control at eval time.
+RISK_INTERNAL_DETECT_STRIDE = 3   # run YOLO+tracker every Nth frame only

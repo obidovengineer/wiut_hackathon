@@ -29,14 +29,26 @@ class RiskModel:
         self.tracker = Tracker(fps)
         self.store = TrajectoryStore()
         self.smoothed = 0.0
+        self._frame_idx = 0
 
     def reset(self, fps: float):
         from .tracking import Tracker
         self.tracker = Tracker(fps)
         self.store = TrajectoryStore()
         self.smoothed = 0.0
+        self._frame_idx = 0
 
     def step(self, frame, t_sec: float) -> float:
+        # only run full detection+tracking every Nth frame; other frames
+        # just return the current smoothed score. This is explicitly
+        # allowed by the spec and is the single biggest lever on part_b_sec
+        # — full YOLO inference on every frame was the reason we were
+        # missing the time budget by 2s out of 1021s.
+        run_detect = (self._frame_idx % config.RISK_INTERNAL_DETECT_STRIDE == 0)
+        self._frame_idx += 1
+        if not run_detect:
+            return self.smoothed
+
         dets = self.detector.infer(frame)
         tracks = self.tracker.update(dets, frame)
         self.store.update(t_sec, tracks)

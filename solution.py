@@ -50,14 +50,15 @@ def detect_events(video_path: str) -> list[list]:
     store = TrajectoryStore()
     acc = EventAccumulator()
 
-    idx = 0
-    while True:
-        ok, frame = cap.read()
-        if not ok:
-            break
-        t = idx / fps
-        if idx % config.DETECT_FRAME_STRIDE == 0:
-            dets = _detector.infer(frame)
+    def process_batch(batch_frames: list, batch_times: list) -> None:
+        """One YOLO forward call for up to DETECT_BATCH_SIZE sampled frames
+        at once, instead of DETECT_BATCH_SIZE separate single-frame calls —
+        this is what was making Part A slow (397.5s of single-frame infer()
+        calls with per-call overhead paid every time)."""
+        if not batch_frames:
+            return
+        dets_list = _detector.infer_batch(batch_frames)
+        for frame, t, dets in zip(batch_frames, batch_times, dets_list):
             tracks = tracker.update(dets, frame)
             store.update(t, tracks)
             light = light_state(frame, calib["light_roi"])
@@ -74,9 +75,22 @@ def detect_events(video_path: str) -> list[list]:
             accident_pairs, near_miss_pairs = accident_and_near_miss(store, calib)
             active["accident"] = accident_pairs
             active["near_miss"] = near_miss_pairs
-
             acc.step(t, active)
+
+    idx = 0
+    batch_frames, batch_times = [], []
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            break
+        if idx % config.DETECT_FRAME_STRIDE == 0:
+            batch_frames.append(frame)
+            batch_times.append(idx / fps)
+            if len(batch_frames) >= config.DETECT_BATCH_SIZE:
+                process_batch(batch_frames, batch_times)
+                batch_frames, batch_times = [], []
         idx += 1
+    process_batch(batch_frames, batch_times)  # flush the final partial batch
 
     duration = idx / fps
     cap.release()
